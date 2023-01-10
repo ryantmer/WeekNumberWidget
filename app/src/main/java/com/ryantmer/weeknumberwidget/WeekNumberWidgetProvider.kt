@@ -9,30 +9,10 @@ import android.net.Uri
 import android.util.Log
 import android.widget.RemoteViews
 import androidx.core.content.edit
-import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.temporal.ChronoField
 
 class WeekNumberWidgetProvider : AppWidgetProvider() {
-    private fun getBasicRemoteViews(context: Context): RemoteViews =
-        RemoteViews(context.packageName, R.layout.widget).apply {
-            setTextViewText(
-                R.id.week_number,
-                LocalDate.now().get(ChronoField.ALIGNED_WEEK_OF_YEAR).toString()
-            )
-        }
-
-    private fun getPendingIntentForAction(
-        context: Context,
-        action: String,
-        appWidgetId: Int
-    ): PendingIntent {
-        val intent = Intent(context, WeekNumberWidgetProvider::class.java)
-        intent.action = action
-        intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        intent.data = intent.asUri()
-        return PendingIntent.getBroadcast(context, 0, intent, INTENT_FLAGS)
-    }
-
     private fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -40,29 +20,39 @@ class WeekNumberWidgetProvider : AppWidgetProvider() {
     ) {
         Log.d(TAG, "Updating widget ID $appWidgetId")
 
-        val views = getBasicRemoteViews(context)
+        val views = RemoteViews(context.packageName, R.layout.widget).apply {
+            setTextViewText(
+                R.id.week_number,
+                LocalDateTime.now().get(ChronoField.ALIGNED_WEEK_OF_YEAR).toString()
+            )
+        }
 
-        val checkboxPendingIntent = getPendingIntentForAction(context, CHECKBOX_ACTION, appWidgetId)
+        val intent = Intent(context, WeekNumberWidgetProvider::class.java)
+        intent.action = CHECKBOX_ACTION
+        intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        intent.data = intent.asUri()
+        val checkboxPendingIntent = PendingIntent.getBroadcast(context, 0, intent, INTENT_FLAGS)
         views.setOnCheckedChangeResponse(
             R.id.checkbox,
             RemoteViews.RemoteResponse.fromPendingIntent(checkboxPendingIntent)
         )
 
-//        val manualRefreshPendingIntent =
-//            getPendingIntentForAction(context, MANUAL_UPDATE_ACTION, appWidgetId)
-//        views.setOnClickPendingIntent(R.id.refresh_button, manualRefreshPendingIntent)
-
         val prefsKey = PREFS_KEY_PREFIX + appWidgetId
-        val mostRecentResetDay = LocalDate.parse(
-            context.getSharedPreferences(PREFS_NAME, 0)
-                .getString(prefsKey, LocalDate.MIN.toString())
-        )
-        val today = LocalDate.now()
-        Log.d(TAG, "Checkbox was most recently reset on $mostRecentResetDay")
-        if (mostRecentResetDay.isBefore(today)) {
-            views.setCompoundButtonChecked(R.id.checkbox, false)
-            context.getSharedPreferences(PREFS_NAME, 0).edit {
-                putString(prefsKey, today.toString())
+        val lastResetString = context.getSharedPreferences(PREFS_NAME, 0).getString(prefsKey, null)
+        if (lastResetString != null) {
+            // When the UI gets refreshed, set the checkbox state based on whether:
+            // - the checkbox has been checked before, and
+            // - the checkbox was last checked yesterday (or before)
+            val checkboxLastReset = LocalDateTime.parse(lastResetString)
+            Log.d(TAG, "Checkbox was most recently reset on $checkboxLastReset")
+
+            val now = LocalDateTime.now()
+            if (checkboxLastReset.year == now.year && checkboxLastReset.dayOfYear == now.dayOfYear) {
+                // The checkbox was already checked today, so re-check it (occurs when the UI is being rebuilt)
+                views.setCompoundButtonChecked(R.id.checkbox, true)
+            } else {
+                // Otherwise, reset the checkbox - it was last checked yesterday or before
+                views.setCompoundButtonChecked(R.id.checkbox, false)
             }
         }
 
@@ -97,8 +87,16 @@ class WeekNumberWidgetProvider : AppWidgetProvider() {
                 when (action) {
                     CHECKBOX_ACTION -> {
                         Log.d(TAG, "Checkbox tapped")
-                        // TODO: When the checkbox is checked, disable it until it gets reset
-                        // updateWidget(context, AppWidgetManager.getInstance(context), appWidgetId)
+
+                        val prefsKey = PREFS_KEY_PREFIX + appWidgetId
+                        val today = LocalDateTime.now()
+                        context.getSharedPreferences(PREFS_NAME, 0).edit {
+                            putString(prefsKey, today.toString())
+                        }
+
+                        Log.d(TAG, "Last-checked time updated to $today")
+
+                        updateWidget(context, AppWidgetManager.getInstance(context), appWidgetId)
                     }
                     MANUAL_UPDATE_ACTION -> {
                         Log.d(TAG, "Forcibly updating widget")
