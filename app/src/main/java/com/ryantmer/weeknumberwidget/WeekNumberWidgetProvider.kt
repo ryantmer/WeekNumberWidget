@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.edit
 import java.time.LocalDateTime
@@ -48,11 +49,14 @@ class WeekNumberWidgetProvider : AppWidgetProvider() {
 
             val now = LocalDateTime.now()
             if (checkboxLastReset.year == now.year && checkboxLastReset.dayOfYear == now.dayOfYear) {
-                // The checkbox was already checked today, so re-check it (occurs when the UI is being rebuilt)
                 views.setCompoundButtonChecked(R.id.checkbox, true)
+                views.setViewVisibility(R.id.checkbox, View.GONE)
+                views.setViewVisibility(R.id.done_text, View.VISIBLE)
             } else {
                 // Otherwise, reset the checkbox - it was last checked yesterday or before
                 views.setCompoundButtonChecked(R.id.checkbox, false)
+                views.setViewVisibility(R.id.checkbox, View.VISIBLE)
+                views.setViewVisibility(R.id.done_text, View.GONE)
             }
         }
 

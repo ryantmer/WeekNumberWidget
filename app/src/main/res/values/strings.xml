@@ -4,4 +4,5 @@
     <string name="week_number_header">It is currently week number</string>
     <string name="week_number_header_short">Week</string>
     <string name="current_week_number">N/A</string>
+    <string name="done_text">Done! 🎉</string>
 </resources>
